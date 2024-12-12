@@ -1,0 +1,65 @@
+# Compiled source #
+###################
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+
+# Packages #
+############
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# Logs and databases #
+######################
+*.log
+*.sql
+*.sqlite
+
+# OS generated files #
+######################
+.DS_Store
+Thumbs.db
+
+# Python #
+##########
+*.pyc
+*.pyo
+__pycache__/
+
+# Jupyter Notebook #
+####################
+.ipynb_checkpoints/
+
+# Virtual environments #
+########################
+env/
+venv/
+ENV/
+venv.bak/
+
+# IDEs and editors #
+####################
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# data
+*.csv
+*.xlsx
+runs/
+data/
+checkpoint/
+apikey.txt
+
+# ipynb
+.ipynb_checkpoints/
