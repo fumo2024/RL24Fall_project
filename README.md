@@ -73,6 +73,8 @@ print(response.choices[0].message.content)
 ```
 ### 代码结构说明
 1、为了保证大家的apikey安全，我们将它单独放在了`apikey.json`文件中，并且加入了`.gitignore`来防呆。
+
 2、`run_game.sh`为一个简单的shell脚本，在命令行键入`./run_game.sh`以运行。它会将日志文件存放在`run`文件夹下
+
 3、`simulator`文件夹下存放了一个用来模拟五子棋对局的网页工具，在命令行键入`python3 app.py`以运行。目前不支持交互下棋，将准备好的对局信息放在`assets`目录下，就可以可视化对局信息了。
 
