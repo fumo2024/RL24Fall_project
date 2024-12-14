@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>五子棋</title>
+    <style type='text/css'>
+        canvas {
+            display: block;
+            margin: 50px auto;
+            box-shadow: -2px -2px 2px #efefef, 5px 5px 5px #b9b9b9;
+            cursor: pointer;
+        }
+
+        .btn-wrap {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+        }
+
+        .btn-wrap div {
+            margin: 0 10px;
+            user-select: none;
+            /* 禁止文本选中 */
+            -webkit-user-select: none;
+            /* 禁止文本选中 - Webkit 浏览器 */
+            -moz-user-select: none;
+            /* 禁止文本选中 - Firefox */
+            -ms-user-select: none;
+            /* 禁止文本选中 - Internet Explorer/Edge */
+        }
+
+        div>span {
+            display: inline-block;
+            padding: 10px 20px;
+            color: #fff;
+            background-color: #EE82EE;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        div.unable span {
+            background: #D6D6D4;
+            color: #adacaa;
+        }
+
+        #result-wrap {
+            text-align: center;
+        }
+
+        #progress-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        #progressBar {
+            width: 80%;
+            height: 10px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #ddd;
+            outline: none;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        #progressBar::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 0;
+            height: 0;
+        }
+
+        #progressBar::-moz-range-thumb {
+            width: 0;
+            height: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <h3 id="result-wrap">--五子棋模拟器--</h3>
+    <canvas id="chess" width="450px" height="450px"></canvas>
+    <div class="btn-wrap">
+        <div id='restart' class="restart">
+            <span>重新开始</span>
+        </div>
+        <div id='reset' class="reset">
+            <span>重置</span>
+        </div>
+        <div id='pause' class="pause">
+            <span>开始/暂停</span>
+        </div>
+        <div id='speed' class="speed">
+            <span>速度: <input type="range" id="speedInput" value="20" min="1" max="100" step="1"><span
+                    id="speedValue">20</span> </span>
+        </div>
+    </div>
+    <div id='progress-wrap'>
+        <input type="range" id="progressBar" min="0" max="100" value="0" step="1">
+        <span id="progressValue">进度: 0%</span>
+    </div>
+    <div id="file-list" class="file-list">
+        <!-- 这里将动态填充可选择的对局文件 -->
+    </div>
+    <div id="jsonDisplay" style="display:none;"></div>
+    <!-- <div id="jsonDisplay"></div> -->
+    <script type="text/javascript" charset="utf-8">
+        let canvas = document.getElementById('chess');
+        let ctx = canvas.getContext('2d');
+        let isPaused = true;  // 初始为暂停状态
+        let speed = 5;  // 初始速度
+        let progress = 0;  // 初始进度
+        let whitePieces = [];
+        let blackPieces = [];
+        let maxProgress = 100;  // 最大进度，百分比
+        let totalSteps = 0;  // 总步数，用于计算进度，这里简单示例未准确设置，可完善
+        let currentStep = 0;  // 当前步数
+
+        // 绘制棋盘函数
+        function drawChessBoard(context) {
+            context.clearRect(0, 0, canvas.width, canvas.height); // 清除画布，避免重复绘制
+            context.beginPath(); // 开始新的路径
+            for (let i = 0; i < 15; i++) {
+                context.moveTo(15 + i * 30, 15);
+                context.lineTo(15 + i * 30, 435);
+                context.moveTo(15, 15 + i * 30);
+                context.lineTo(435, 15 + i * 30);
+            }
+            context.stroke();
+            context.closePath(); // 关闭路径
+        }
+
+        // 绘制棋子函数
+        function drawPieces(whitePieces, blackPieces) {
+            if (whitePieces.length === 0 && blackPieces.length === 0) {
+                return;
+            }
+            whitePieces.forEach(piece => {
+                ctx.beginPath();
+                ctx.arc(15 + piece[0] * 30, 15 + piece[1] * 30, 13, 0, 2 * Math.PI);
+                ctx.fillStyle = '#FFF';
+                ctx.fill();
+                ctx.strokeStyle = '#000'; // 添加黑色边框
+                ctx.stroke(); // 绘制边框
+                ctx.closePath();
+            });
+
+            blackPieces.forEach(piece => {
+                ctx.beginPath();
+                ctx.arc(15 + piece[0] * 30, 15 + piece[1] * 30, 13, 0, 2 * Math.PI);
+                ctx.fillStyle = '#000';
+                ctx.fill();
+                ctx.strokeStyle = '#000'; // 添加黑色边框
+                ctx.stroke(); // 绘制边框
+                ctx.closePath();
+            });
+        }
+
+        function pauseGame() {
+            isPaused = !isPaused;
+            if (!isPaused) {
+                gameLoop();
+            }
+        }
+
+        function updateProgress() {
+            progress = document.getElementById('progressBar').value;
+            document.getElementById('progressValue').innerHTML = '进度: ' + progress + '%';
+            updatePiecesFromProgress();
+        }
+
+        function updatePiecesFromProgress() {
+            // 根据进度计算当前应展示的棋子数量（向下取整）
+            let totalSteps = whitePieces.length + blackPieces.length;
+            let currentSteps = Math.floor(totalSteps * (progress / maxProgress));
+            let blackCount = Math.floor((currentSteps + 1) / 2);
+            let whiteCount = Math.floor(currentSteps / 2);
+            // 只更新棋子列表中对应数量的棋子用于展示，避免全消失问题
+            let displayedWhitePieces = whitePieces.slice(0, whiteCount);
+            let displayedBlackPieces = blackPieces.slice(0, blackCount);
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawChessBoard(ctx);
+            drawPieces(displayedWhitePieces, displayedBlackPieces);
+        }
+
+        function gameLoop() {
+            if (isPaused) return;
+            if (currentStep >= totalSteps || progress >= maxProgress) {
+                // 达到最大进度或总步数结束游戏
+                isPaused = true;
+                return;
+            }
+
+            // 每次循环只绘制一个棋子，轮流绘制黑子和白子
+            if (currentStep % 2 === 0 && currentStep / 2 < blackPieces.length) {
+                drawPieces([], [blackPieces[Math.floor(currentStep / 2)]]);
+            } else if (currentStep % 2 === 1 && Math.floor(currentStep / 2) < whitePieces.length) {
+                drawPieces([whitePieces[Math.floor(currentStep / 2)]], []);
+            }
+
+            currentStep++;
+            progress = Math.min(maxProgress, Math.round((currentStep / totalSteps) * maxProgress));
+            updateProgressBar();
+
+            setTimeout(() => {
+                requestAnimationFrame(gameLoop);
+            }, 1000 - 9 * speed);
+        }
+
+        function updateProgressBar() {
+            document.getElementById('progressBar').value = progress;
+            document.getElementById('progressValue').innerHTML = '进度: ' + progress + '%';
+        }
+
+        window.onload = function () {
+            drawChessBoard(ctx);
+
+            fetch('/get_file_names')
+                .then(response => response.json())
+                .then(fileNames => {
+                    displayFileList(fileNames);
+                });
+
+            fetch('/get_current_data')
+                .then(response => response.json())
+                .then(data => {
+                    if (data) {
+                        updatePiecesFromServer(data.file_content);
+                        displayJSONData(data);
+                        totalSteps = whitePieces.length + blackPieces.length;  // 简单设置总步数，可优化
+                        // 初始化勾选框为当前所选数据
+                        const currentFileName = data.file_name;
+                        console.log('currentFileName:', currentFileName); // 调试信息
+                        const checkboxes = document.getElementsByName('file-select');
+                        console.log('checkboxes:', checkboxes); // 调试信息
+                        checkboxes.forEach(checkbox => {
+                            console.log('checkbox.value:', checkbox.value); // 调试信息
+                            if (checkbox.value === currentFileName) {
+                                checkbox.checked = true;
+                            }
+                        });
+                    }
+                });
+
+            document.getElementById('progressBar').addEventListener('input', updateProgress);
+            document.getElementById('restart').addEventListener('click', restartGame);
+            document.getElementById('reset').addEventListener('click', resetGame);
+            document.getElementById('pause').addEventListener('click', pauseGame);
+            document.getElementById('speedInput').addEventListener('input', changeSpeed);
+            document.getElementById('speedValue').innerText = document.getElementById('speedInput').value;
+        }
+
+        function displayFileList(fileNames) {
+            const fileListDiv = document.getElementById('file-list');
+            fileListDiv.innerHTML = ''; // 清空之前的内容
+
+            fileNames.forEach(name => {
+                const label = document.createElement('label');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'radio';
+                checkbox.name = 'file-select'; // 互斥选择
+                checkbox.value = name;
+                checkbox.addEventListener('change', function () {
+                    if (this.checked) {
+                        loadData(this.value);
+                    }
+                });
+
+                label.appendChild(checkbox);
+                label.appendChild(document.createTextNode(name));
+                fileListDiv.appendChild(label);
+                fileListDiv.appendChild(document.createElement('br')); // 换行
+            });
+        }
+
+        function loadData(fileName) {
+            fetch('/load_data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ "file_name": fileName })
+            }).then(response => response.json())
+                .then(result => {
+                    if (result.message === "Data loaded successfully") {
+                        const currentData = document.getElementById('jsonDisplay');
+                        currentData.textContent = JSON.stringify(result, null, 4);
+                        updatePiecesFromServer(result.file_content);
+                        totalSteps = result.file_content.white.length + result.file_content.black.length;
+                        // 重置进度等相关状态
+                        progress = 0;
+                        currentStep = 0;
+                        updateProgressBar();
+                        isPaused = true;
+                    }
+                });
+        }
+
+        function updatePiecesFromServer(data) {
+            whitePieces = data.white || [];
+            blackPieces = data.black || [];
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawChessBoard(ctx);
+            drawPieces(whitePieces, blackPieces);
+        }
+
+        function displayJSONData(data) {
+            const jsonDisplayDiv = document.getElementById('jsonDisplay');
+            jsonDisplayDiv.innerHTML = JSON.stringify(data, null, 4);
+        }
+
+        function restartGame() {
+            currentStep = 0;
+            progress = 0;
+            updateProgressBar();
+            updatePiecesFromProgress();
+            isPaused = false;
+            gameLoop();
+        }
+
+        function resetGame() {
+            currentStep = 0;
+            progress = 0;
+            updateProgressBar();
+            updatePiecesFromProgress();
+            isPaused = true;
+        }
+
+        function changeSpeed() {
+            speed = document.getElementById('speedInput').value / 10;
+            document.getElementById('speedValue').innerText = document.getElementById('speedInput').value;
+        }
+    </script>
+</body>
+
+</html>

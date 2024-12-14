@@ -4,7 +4,7 @@
 mkdir -p runs
 
 # 获取当前时间信息
-timestamp=$(date +"%Y%m%d%H%M%S")
+timestamp=$(TZ='Asia/Shanghai' date +"%Y%m%d%H%M%S")
 
 # 生成log文件名称
 log_file="runs/log_$timestamp.txt"

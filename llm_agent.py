@@ -66,14 +66,14 @@ class Agent(object):
         2. Choose the best move as strategy
         """
         
-        coordinates = re.findall(r'\((\d+), (\d+)\)', text)   # Simply keep (a, b)
+        coordinates = re.findall(r'\((\d+),\s*(\d+)\)', text)   # Simply keep (a, b)
         
         if not coordinates:
             raise ValueError("No valid coordinates found in the text")
 
         print(f'DEBUG llm {self.player_id} coordinates: {coordinates}')
 
-        return (int(coordinates[0][0]), int(coordinates[0][1]))
+        return (int(coordinates[1][0]), int(coordinates[1][1]))
         
     def query_llm(self, state):
         """

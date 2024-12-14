@@ -57,9 +57,10 @@ venv.bak/
 *.csv
 *.xlsx
 runs/
+results/
 data/
 checkpoint/
-apikey.txt
+apikey.*
 
 # ipynb
 .ipynb_checkpoints/
