@@ -1,13 +1,40 @@
 import openai
 import re
+import json
+import os
+# from zhipuai import ZhipuAI
 
-API_KEY = YOUR_API_KEY   # Your API key
-BASE_URL = YOUR_NASE_URL  # Your base URL
+# 定义文件名
+apikey_file = 'apikey.json'
+
+# 检查文件是否存在
+if not os.path.exists(apikey_file):
+    # 提示用户创建文件并提供示例内容
+    print(f"文件 {apikey_file} 不存在，请创建该文件并添加以下内容：")
+    example_content = [
+        {
+            "API_KEY": "YOUR_API_KEY",
+            "BASE_URL": "YOUR_BASE_URL",
+            "MODEL": "MODEL_NAME"
+        }
+    ]
+    print(json.dumps(example_content, indent=4))
+    # 退出程序
+    exit(1)
+
+# 从 apikey.json 文件中读取 API_KEY 和 BASE_URL
+with open(apikey_file, 'r') as f:
+    data = json.load(f)
+    api_info = data[0]  # 假设只需要第一个对象的信息
+
+API_KEY = api_info['API_KEY']   # Your API key
+BASE_URL = api_info['BASE_URL']  # Your base URL
+MODEL = api_info['MODEL']        # Your model name
 
 class Agent(object):
     
     def __init__(self, player_id=1, board_size=15, 
-                 model="deepseek-chat", 
+                 model=MODEL, 
                  api_key=API_KEY, 
                  base_url=BASE_URL):
         
@@ -41,9 +68,12 @@ class Agent(object):
         
         coordinates = re.findall(r'\((\d+), (\d+)\)', text)   # Simply keep (a, b)
         
-        # print(f'DEBUG llm {self.player_id} coordinates: {coordinates}')
+        if not coordinates:
+            raise ValueError("No valid coordinates found in the text")
 
-        return (int(coordinates[1][0]), int(coordinates[1][1]))
+        print(f'DEBUG llm {self.player_id} coordinates: {coordinates}')
+
+        return (int(coordinates[0][0]), int(coordinates[0][1]))
         
     def query_llm(self, state):
         """
@@ -55,7 +85,7 @@ class Agent(object):
         
         # [TODO] Parse state into token
         content = self.state_2_token(state)
-        # print(f'DEBUG llm  {self.player_id} input: {content}')
+        print(f'DEBUG llm  {self.player_id} input: {content}')
         
         # [Reference] Call LLM API
         # [TODO] TWO "content" part both should be modified for your purpose
@@ -70,9 +100,11 @@ class Agent(object):
                         stream=False,
                     )
         
-        # print(f"DEBUG llm response: {response['choices'][0]['message']['content']}")
-        
+        llm_response = response['choices'][0]['message']['content']
+        print(f"DEBUG: LLM 响应: {llm_response}")
+
         # [TODO] Parse response into steps
-        step = self.token_2_state(response.choices[0].message.content)
-        
+        step = self.token_2_state(llm_response)
+        print(f"DEBUG: 解析的步骤: {step}")
+
         return step

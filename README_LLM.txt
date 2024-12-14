@@ -9,3 +9,6 @@ ChessBoard.py
 
 llm_agent.py 
     Define agent using LLM while making strategies, and related functions
+
+run_game.sh
+    bash script to complete a simulation.
