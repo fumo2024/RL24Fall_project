@@ -2,6 +2,7 @@ import openai
 import re
 import json
 import os
+import random
 # from zhipuai import ZhipuAI
 
 # 定义文件名
@@ -57,7 +58,7 @@ class Agent(object):
 
         return token
     
-    def token_2_state(self, text):
+    def token_2_state(self, text, moves):
         # 将LLM回复转换为棋盘状态/输出位置
         """
         Parse LLM output texts into move position.
@@ -66,33 +67,86 @@ class Agent(object):
         2. Choose the best move as strategy
         """
         
-        coordinates = re.findall(r'\((\d+),\s*(\d+)\)', text)   # Simply keep (a, b)
-        
-        if not coordinates:
-            raise ValueError("No valid coordinates found in the text")
+        all_coordinates = re.findall(r'\((\d+),\s*(\d+)\)', text)   # Simply keep (a, b)
+        recommended_positions = re.findall(r'\d+,\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)\s*.', text)
 
-        print(f'DEBUG llm {self.player_id} coordinates: {coordinates}')
+        # Convert to list of tuples
+        all_coordinates = [(int(x), int(y)) for x, y in all_coordinates]
+        recommended_positions = [(int(x), int(y)) for x, y in recommended_positions]
+        all_moves = [coord for sublist in moves.values() for coord in sublist]
 
-        return (int(coordinates[1][0]), int(coordinates[1][1]))
+        # print(f"DEBUG token_2_state: All coordinates: {all_coordinates}")
+        # print(f"DEBUG token_2_state: Recommended positions: {recommended_positions}")
+        # print(f"DEBUG token_2_state: Moves: {all_moves}")
+
+        # Filter out moves that are already in the moves list
+        filtered_all_coordinates = [coord for coord in all_coordinates if coord not in all_moves and coord[0] < self.board_size and coord[1] < self.board_size]
+        filtered_recommended_positions = [coord for coord in recommended_positions if coord not in all_moves and coord[0] < self.board_size and coord[1] < self.board_size]
+
+        if not filtered_recommended_positions:
+            print("DEBUG token_2_state: No recommended positions found in the LLM response")
+        else:
+            print(f"DEBUG token_2_state: Recommended positions: {filtered_recommended_positions}")
+            return filtered_recommended_positions[0]
+
+        if not filtered_all_coordinates:
+            print("DEBUG token_2_state: Fxxk LLM, you give no valid coordinates")
+            empty_grid = []
+            for x in range(self.board_size):
+                for y in range(self.board_size):
+                    if (x,y) not in all_moves:
+                        empty_grid.append((x, y))
+            return random.choice(empty_grid)
+        else:
+            print(f"DEBUG token_2_state: All coordinates: {filtered_all_coordinates}")
+            return filtered_all_coordinates[0]
         
-    def query_llm(self, state):
+    def query_llm(self, state, moves):
         """
         Query for next step
         [TODO] Design your only strategy 
             Including directly calling LLM or taking LLM's output to build RL based strategies
             
         """
-        
+        prompt = f"You are a excellent Gomoku chess player. \
+                And later I will need you to help me play Gomoku.\
+                Here are some important strategies and techniques to \
+                improve your Gomoku skills:1. When you find you have already\
+                formed a line of four, you must continue to form aLine of five\
+                to win the game!\n2.Center Control:Start yourplacement in or \
+                near the center of the chessboard.\n3.Blocking:Always be aware \
+                of your opponent's moves. If they are close to forming a line \
+                of five,prioritize blocking them.\nUsually when your opponent \
+                formsa line of three, you need to block your opponent's plays!\
+                \n4When you find you have already formed a line of three, you \
+                are suggested to form a lineof four!\n5.You can only set a piece(play)on \
+                emptyNow you play on a 15*15spaces(position)over the chessboard.\
+                I play on a {self.board_size}*{self.board_size} \
+                chessboard, I will give you an array indicating board state line by line from left to right with \
+                {self.player_id} indicating my play, {-self.player_id} indicating opponent's plays, \
+                and 0 indicating empty spaces. The previous moves are as follows: {moves}. \
+                pleasw do not give me the same position as the previous moves.\
+                note the index starts at 0, So all of the components of your suggestion \
+                index must be less than {self.board_size}.\
+                give your advise as the following format: \
+                $Give your analysis of the current situation here. \
+                $The give 3 positions in descending order of recommendation as follows.\
+                The recommended positions are:\
+                '1, (x, y).\
+                2, (x, y).\
+                3, (x, y).'"
+        print(f"DEBUG: LLM 输入: {prompt}")
+
         # [TODO] Parse state into token
         content = self.state_2_token(state)
-        print(f'DEBUG llm  {self.player_id} input: {content}')
-        
+        print(f'DEBUG llm  {self.player_id} input state: {content}')
+
         # [Reference] Call LLM API
         # [TODO] TWO "content" part both should be modified for your purpose
         response = openai.ChatCompletion.create(
                         model=self.llm_model,
                         messages=[
-                            {"role": "system", "content": f"You are a good Gomoku chess player. And later I will need you to help me play Gomoku.  I play on a {self.board_size}*{self.board_size} chessboard, I will give you an array indicating board state line by line from left to right with {self.player_id} indicating my play, {-self.player_id} indicating opponent's plays, and 0 indicating empty spaces. You can give me 3 positions in descending order of recommendation."},
+                            {"role": "system", "content": prompt},
                             {"role": "user", "content": content}
                         ],
                         temperature=0,  # Set temperature to 0 for deterministic output
@@ -104,7 +158,7 @@ class Agent(object):
         print(f"DEBUG: LLM 响应: {llm_response}")
 
         # [TODO] Parse response into steps
-        step = self.token_2_state(llm_response)
+        step = self.token_2_state(llm_response, moves)
         print(f"DEBUG: 解析的步骤: {step}")
 
         return step

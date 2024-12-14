@@ -3,19 +3,19 @@ from llm_agent import Agent
 import json
 import argparse
 
-def start_game(board, players):
+def start_game(board, players, max_iter=5):
     moves = {"black": [], "white": []}
     curr_player = 0     # players[0]先手
     
-    iterations = 5      # 此处限制最大回合数，仅作演示，实际对局中游戏分出胜负则终局
+    iterations = max_iter     # 此处限制最大回合数，仅作演示，实际对局中游戏分出胜负则终局
     
     while iterations > 0:
         
-        print(f'iteration: {5 - iterations + 1}')
+        print(f'iteration: {max_iter - iterations + 1}')
         
         # 调用agent决策落子位置
         state = board.get_state()
-        move = players[curr_player].query_llm(state)
+        move = players[curr_player].query_llm(state, moves)
 
         # 记录移动
         if curr_player == 1:
@@ -29,6 +29,11 @@ def start_game(board, players):
         curr_player = 1 - curr_player
         
         iterations -= 1
+
+        if board.is_ended():
+            winner = "black" if curr_player == 1 else "white"
+            print(f"Game Over after {max_iter - iterations + 1} iterations! winner is {winner}.")
+            break
         
     return moves
         
@@ -48,7 +53,7 @@ def main():
     bots = [bot1, bot2]
     
     # 开始游戏
-    moves = start_game(board, bots)
+    moves = start_game(board, bots, max_iter=50)
 
     # 自定义函数来格式化列表
     def custom_format(obj):
