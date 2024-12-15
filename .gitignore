@@ -61,6 +61,7 @@ results/
 data/
 checkpoint/
 apikey.*
+simulator/assets/
 
 # ipynb
 .ipynb_checkpoints/
