@@ -68,16 +68,16 @@ class Agent(object):
         """
         
         all_coordinates = re.findall(r'\((\d+),\s*(\d+)\)', text)   # Simply keep (a, b)
-        recommended_positions = re.findall(r'\d+,\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)\s*.', text)
+        recommended_positions = re.findall(r'\d+[,.]\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)', text)
 
         # Convert to list of tuples
         all_coordinates = [(int(x), int(y)) for x, y in all_coordinates]
         recommended_positions = [(int(x), int(y)) for x, y in recommended_positions]
         all_moves = [coord for sublist in moves.values() for coord in sublist]
 
-        # print(f"DEBUG token_2_state: All coordinates: {all_coordinates}")
-        # print(f"DEBUG token_2_state: Recommended positions: {recommended_positions}")
-        # print(f"DEBUG token_2_state: Moves: {all_moves}")
+        print(f"DEBUG token_2_state: All coordinates: {all_coordinates}")
+        print(f"DEBUG token_2_state: Recommended positions: {recommended_positions}")
+        print(f"DEBUG token_2_state: Moves: {all_moves}")
 
         # Filter out moves that are already in the moves list
         filtered_all_coordinates = [coord for coord in all_coordinates if coord not in all_moves and coord[0] < self.board_size and coord[1] < self.board_size]
@@ -90,7 +90,7 @@ class Agent(object):
             return filtered_recommended_positions[0]
 
         if not filtered_all_coordinates:
-            print("DEBUG token_2_state: Fxxk LLM, you give no valid coordinates")
+            print("DEBUG token_2_state: LLM give no valid coordinates, so chose a random one")
             empty_grid = []
             for x in range(self.board_size):
                 for y in range(self.board_size):
