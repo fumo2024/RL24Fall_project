@@ -108,33 +108,28 @@ class Agent(object):
             Including directly calling LLM or taking LLM's output to build RL based strategies
             
         """
-        prompt = f"You are a excellent Gomoku chess player. \
-                And later I will need you to help me play Gomoku.\
-                Here are some important strategies and techniques to \
-                improve your Gomoku skills:1. When you find you have already\
-                formed a line of four, you must continue to form aLine of five\
-                to win the game!\n2.Center Control:Start yourplacement in or \
-                near the center of the chessboard.\n3.Blocking:Always be aware \
-                of your opponent's moves. If they are close to forming a line \
-                of five,prioritize blocking them.\nUsually when your opponent \
-                formsa line of three, you need to block your opponent's plays!\
-                \n4When you find you have already formed a line of three, you \
-                are suggested to form a lineof four!\n5.You can only set a piece(play)on \
-                emptyNow you play on a 15*15spaces(position)over the chessboard.\
-                I play on a {self.board_size}*{self.board_size} \
-                chessboard, I will give you an array indicating board state line by line from left to right with \
-                {self.player_id} indicating my play, {-self.player_id} indicating opponent's plays, \
-                and 0 indicating empty spaces. The previous moves are as follows: {moves}. \
-                pleasw do not give me the same position as the previous moves.\
-                note the index starts at 0, So all of the components of your suggestion \
-                index must be less than {self.board_size}.\
-                give your advise as the following format: \
-                $Give your analysis of the current situation here. \
-                $The give 3 positions in descending order of recommendation as follows.\
-                The recommended positions are:\
-                '1, (x, y).\
-                2, (x, y).\
-                3, (x, y).'"
+        prompt = f"""You are a excellent Gomoku chess player. And later I will need you to help me play Gomoku.
+                Here are some important strategies and techniques to improve your Gomoku skills: 
+                1. When you find you have already formed a line of four, you must continue to form aLine of five to win the game!
+                2.Center Control:Start yourplacement in or near the center of the chessboard.
+                3.Blocking:Always be aware of your opponent's moves. If they are close to forming a line of five,prioritize\
+                blocking them.Usually when your opponent formsa line of three, you need to block your opponent's plays!
+                4.When you find you have already formed a line of three, you are suggested to form a lineof four!
+                5.You can only set a piece(play)on empty
+                Now I play on a {self.board_size}*{self.board_size} chessboard, 
+                I will give you an array indicating board state line by line from left to right with 
+                {self.player_id} indicating my play, {-self.player_id} indicating opponent's plays, 
+                and 0 indicating empty spaces. The previous moves are as follows: {moves}. 
+                pleasw do not give me the same position as the previous moves.
+                note the index starts at 0, So all of the components of your suggestion 
+                index must be less than {self.board_size}.
+                give your advise as the following format: 
+                $Give your analysis of the current situation here. 
+                $The give 3 positions in descending order of recommendation as follows.
+                The recommended positions are:
+                '1, (x, y).
+                2, (x, y).
+                3, (x, y).'"""
         print(f"DEBUG: LLM 输入: {prompt}")
 
         # [TODO] Parse state into token
