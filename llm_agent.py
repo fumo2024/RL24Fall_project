@@ -57,57 +57,17 @@ class Agent(object):
         token = ' '.join(str(cell) for row in state for cell in row)    # Simply change state into array
 
         return token
-    
-    def token_2_state(self, text, moves):
-        # 将LLM回复转换为棋盘状态/输出位置
+
+    def plan(self, state):
+        cnt=0
         """
-        Parse LLM output texts into move position.
-        [TODO]
-        1. Parse LLM text
-        2. Choose the best move as strategy
-        """
-        
-        all_coordinates = re.findall(r'\((\d+),\s*(\d+)\)', text)   # Simply keep (a, b)
-        recommended_positions = re.findall(r'\d+[,.]\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)', text)
-
-        # Convert to list of tuples
-        all_coordinates = [(int(x), int(y)) for x, y in all_coordinates]
-        recommended_positions = [(int(x), int(y)) for x, y in recommended_positions]
-        all_moves = [coord for sublist in moves.values() for coord in sublist]
-
-        print(f"DEBUG token_2_state: All coordinates: {all_coordinates}")
-        print(f"DEBUG token_2_state: Recommended positions: {recommended_positions}")
-        print(f"DEBUG token_2_state: Moves: {all_moves}")
-
-        # Filter out moves that are already in the moves list
-        filtered_all_coordinates = [coord for coord in all_coordinates if coord not in all_moves and coord[0] < self.board_size and coord[1] < self.board_size]
-        filtered_recommended_positions = [coord for coord in recommended_positions if coord not in all_moves and coord[0] < self.board_size and coord[1] < self.board_size]
-
-        if not filtered_recommended_positions:
-            print("DEBUG token_2_state: No recommended positions found in the LLM response")
-        else:
-            print(f"DEBUG token_2_state: Recommended positions: {filtered_recommended_positions}")
-            return filtered_recommended_positions[0]
-
-        if not filtered_all_coordinates:
-            print("DEBUG token_2_state: LLM give no valid coordinates, so chose a random one")
-            empty_grid = []
-            for x in range(self.board_size):
-                for y in range(self.board_size):
-                    if (x,y) not in all_moves:
-                        empty_grid.append((x, y))
-            return random.choice(empty_grid)
-        else:
-            print(f"DEBUG token_2_state: All coordinates: {filtered_all_coordinates}")
-            return filtered_all_coordinates[0]
-        
-    def query_llm(self, state, moves):
-        """
-        Query for next step
-        [TODO] Design your only strategy 
-            Including directly calling LLM or taking LLM's output to build RL based strategies
+        give a plan(a set of recommendations) for the next step
             
         """
+        accessible_positions = [(i,j) for i in range(self.board_size) for j in range(self.board_size) if state[i][j]==0]
+        inaccessable_positions = [(i,j) for i in range(self.board_size) for j in range(self.board_size) if state[i][j]!=0]
+        print(f"DEBUG plan: assessible_positions: {accessible_positions}")
+
         prompt = f"""You are a excellent Gomoku chess player. And later I will need you to help me play Gomoku.
                 Here are some important strategies and techniques to improve your Gomoku skills: 
                 1. When you find you have already formed a line of four, you must continue to form aLine of five to win the game!
@@ -119,8 +79,10 @@ class Agent(object):
                 Now I play on a {self.board_size}*{self.board_size} chessboard, 
                 I will give you an array indicating board state line by line from left to right with 
                 {self.player_id} indicating my play, {-self.player_id} indicating opponent's plays, 
-                and 0 indicating empty spaces. The previous moves are as follows: {moves}. 
-                pleasw do not give me the same position as the previous moves.
+                and 0 indicating empty spaces. The moves you can make are as follows: {accessible_positions}. 
+                pleasw give me position inside the above set.
+                The moves which are not empty are as follows: {inaccessable_positions}.
+                Please do not give me the positions which are not empty.
                 note the index starts at 0, So all of the components of your suggestion 
                 index must be less than {self.board_size}.
                 give your advise as the following format: 
@@ -130,30 +92,75 @@ class Agent(object):
                 '1, (x, y).
                 2, (x, y).
                 3, (x, y).'"""
-        print(f"DEBUG: LLM 输入: {prompt}")
+        print(f"DEBUG: LLM plan prompt: {prompt}")
 
-        # [TODO] Parse state into token
         content = self.state_2_token(state)
         print(f'DEBUG llm  {self.player_id} input state: {content}')
 
-        # [Reference] Call LLM API
-        # [TODO] TWO "content" part both should be modified for your purpose
+        messages = [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": content}
+        ]
         response = openai.ChatCompletion.create(
                         model=self.llm_model,
-                        messages=[
-                            {"role": "system", "content": prompt},
-                            {"role": "user", "content": content}
-                        ],
+                        messages=messages,
                         temperature=0,  # Set temperature to 0 for deterministic output
                         # top_p = 0,   # gpt-4.o
                         stream=False,
                     )
         
         llm_response = response['choices'][0]['message']['content']
-        print(f"DEBUG: LLM 响应: {llm_response}")
+        print(f"DEBUG plan: LLM 响应: {llm_response}")
+        while cnt<3:
+            recommended_positions = re.findall(r'\d+[,.]\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)', llm_response)
+            recommended_positions = [(int(x), int(y)) for x, y in recommended_positions]
+            print(f"DEBUG plan: LLM recommended_positions: {recommended_positions}")
+            if any(pos in accessible_positions for pos in recommended_positions):
+                valid_positions = [pos for pos in recommended_positions if pos in accessible_positions]
+                print(f"DEBUG plan: LLM valid_positions: {valid_positions}")
+                re_ask = 0
+            else:
+                re_ask = 1
+            if re_ask == 1:
+                cnt+=1
+                messages.append(response.choices[0].message)
+                messages.extend([
+                    {"role": "user", "content": f"""
+                                    The spaces(positions) {recommended_positions} you have given is non-empty, 
+                                    please re-give the positions where you want to set your pices(play), 
+                                    not {recommended_positions} again! do not give me the positions which are in 
+                                    inassessible_positions:{inaccessable_positions}.
+                                    Exactly output 3 recommended positions in accessible empty positions in the following format:
+                                    '1, (x, y).
+                                    2, (x, y).
+                                    3, (x, y).'
+                                    """}])
+                response = openai.ChatCompletion.create(
+                    model=self.llm_model,
+                    messages=messages,
+                    temperature=0,  # Set temperature to 0 for deterministic output
+                    # top_p = 0,   # gpt-4.o
+                    stream=False,
+                )
+                llm_response = response['choices'][0]['message']['content']
+                print(f"My messages to LLM: {messages}")
+                print(f"DEBUG: LLM 响应: {llm_response}")
+            else:
+                llm_response = response['choices'][0]['message']['content']
+                print(f"My messages to LLM: {messages}")
+                print(f"DEBUG: LLM 响应: {llm_response}")
+                return valid_positions
+        print("LLM have given me invalid positions for 3 times, so lead to a random position.")
+        return [random.choice(accessible_positions)]
 
-        # [TODO] Parse response into steps
-        step = self.token_2_state(llm_response, moves)
-        print(f"DEBUG: 解析的步骤: {step}")
-
-        return step
+    def query_llm(self, state, moves):
+        """
+        Query for next step
+        [TODO] Design your only strategy 
+            Including directly calling LLM or taking LLM's output to build RL based strategies
+            
+        """
+        recommended_positions = self.plan(state)
+        print(f"DEBUG query_llm: recommended_positions: {recommended_positions}")
+        print(f"DEBUG query_llm: move made by player{self.player_id}: {recommended_positions[0]}")
+        return recommended_positions[0]
