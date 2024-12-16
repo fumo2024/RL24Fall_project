@@ -7,7 +7,7 @@ def start_game(board, players):
     moves = {"black": [], "white": []}
     curr_player = 0     # players[0]先手
     
-    iterations = 5      # 此处限制最大回合数，仅作演示，实际对局中游戏分出胜负则终局
+    iterations = 20      # 此处限制最大回合数，仅作演示，实际对局中游戏分出胜负则终局
     
     while iterations > 0:
         
@@ -29,6 +29,10 @@ def start_game(board, players):
         curr_player = 1 - curr_player
         
         iterations -= 1
+        if board.is_ended():
+            winner = "black" if curr_player == 1 else "white"
+            print(f"Game Over after {20 - iterations + 1} iterations! winner is {winner}.")
+            break
         
     return moves
         
