@@ -1,5 +1,5 @@
 from ChessBoard import ChessBoard
-from llm_agent import Agent
+from llm_agent import LLMAgent
 import json
 import argparse
 
@@ -11,11 +11,13 @@ def start_game(board, players, max_iter=5):
     
     while iterations > 0:
         
-        print(f'iteration: {max_iter - iterations + 1}')
-        
+        print(f"{'#'*100}")
+        print(f'[output] iteration: {max_iter - iterations + 1}')
+        print(f"{'#'*100}")
+
         # 调用agent决策落子位置
         state = board.get_state()
-        move = players[curr_player].query_llm(state, moves)
+        move = players[curr_player].query_llm(state)
 
         # 记录移动
         if curr_player == 1:
@@ -32,7 +34,9 @@ def start_game(board, players, max_iter=5):
 
         if board.is_ended():
             winner = "black" if curr_player == 1 else "white"
-            print(f"Game Over after {max_iter - iterations + 1} iterations! winner is {winner}.")
+            print(f"{'#'*100}")
+            print(f"[output] Game Over after {max_iter - iterations + 1} iterations! winner is {winner}.")
+            print(f"{'#'*100}")
             break
         
     return moves
@@ -48,8 +52,8 @@ def main():
     board = ChessBoard(size=15)
     
     # 初始化对弈双方bot
-    bot1 = Agent(player_id=1, board_size=15)
-    bot2 = Agent(player_id=-1, board_size=15)
+    bot1 = LLMAgent(player_id=1, board_size=15)
+    bot2 = LLMAgent(player_id=-1, board_size=15)
     bots = [bot1, bot2]
     
     # 开始游戏

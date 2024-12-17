@@ -56,7 +56,7 @@ venv.bak/
 # data
 *.csv
 *.xlsx
-runs/
+runs*/
 results/
 data/
 checkpoint/

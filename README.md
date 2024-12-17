@@ -78,3 +78,9 @@ print(response.choices[0].message.content)
 
 3、`simulator`文件夹下存放了一个用来模拟五子棋对局的网页工具，在命令行键入`python3 app.py`以运行。目前不支持交互下棋，将准备好的对局信息放在`assets`目录下，就可以可视化对局信息了。
 
+4、各个branch目前的情况
+  - observe1，最naive的实现，prompt采取的助教一套，没有在程序上限制落子合法性
+  - observe2, 修改了prompt以及在程序上添加了合法性限制，采用的prompt提示LLM输出固定结构语句，再用正则匹配提取的模式
+  - observe2R，在observe2的基础上，添加了多轮对话的re_ask机制
+  - observe3, 用来实验evaluate效果的实验性分支
+  - main, 目前主要的开发分支
