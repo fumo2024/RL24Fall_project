@@ -70,12 +70,12 @@ class ChessBoard(object):
             i_ticks = '  0 1 2 3 4 5 6 7 8 9 A B C D E'
             i_ticks = i_ticks[0:1+2*self.size]
             print(i_ticks)
-            for j in range(self.size):
-                if j < 10:
-                    print(j, end='')
+            for i in range(self.size):
+                if i < 10:
+                    print(i, end='')
                 else:
-                    print(chr(55 + j), end='')
-                for i in range(self.size):
+                    print(chr(55 + i), end='')
+                for j in range(self.size):
                     print(' ', end='')
                     if self.board[i][j] > 0:
                         print('o', end='')
@@ -83,7 +83,7 @@ class ChessBoard(object):
                         print('x', end='')
                     else:
                         print(' ', end='')
-                    if i == self.size - 1:
+                    if j == self.size - 1:
                         print()
         return
 
