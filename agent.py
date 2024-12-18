@@ -31,22 +31,12 @@ API_KEY = api_info['API_KEY']   # Your API key
 BASE_URL = api_info['BASE_URL']  # Your base URL
 MODEL = api_info['MODEL']        # Your model name
 
-class LLMAgent(object):
-    
-    def __init__(self, player_id=1, board_size=15, 
-                 model=MODEL, 
-                 api_key=API_KEY, 
-                 base_url=BASE_URL):
-        
-        
-        self.llm_model = model
-        # API key and base URL
-        openai.api_key = api_key
-        openai.api_base = base_url
-        
+class Agent(object):
+
+    def __init__(self, player_id=1, board_size=15):
         self.player_id = player_id
         self.board_size = board_size
-
+    
     def is_legal(self, move, state):
         """
         Judge whether a stone can be placed at given coordinate.
@@ -55,7 +45,7 @@ class LLMAgent(object):
         is_inside = i >= 0 and i < self.board_size and j >= 0 and j < self.board_size
         is_vacancy = state[i][j] == 0
         return is_inside and is_vacancy
-
+    
     def play_stone(self, move, state):
         """
         Play a stone at the given coordinate.
@@ -65,8 +55,8 @@ class LLMAgent(object):
         else:
             state_ = [row.copy() for row in state]
             state_[move[0]][move[1]] = self.player_id
-        return state_  
-
+        return state_
+    
     def display_board(self, state):
         '''
         Print all placed stone.
@@ -91,6 +81,66 @@ class LLMAgent(object):
                 if i == self.board_size - 1:
                     board_str += '\n'
         return board_str
+    
+    def is_game_over(self, state):
+        """
+        检查游戏是否结束。
+        如果有玩家赢了或者棋盘已满，则游戏结束。
+        """
+        def check_winner(player):
+            # 检查行
+            for i in range(self.board_size):
+                for j in range(self.board_size - 4):
+                    if all(state[i][j + k] == player for k in range(5)):
+                        return True
+            # 检查列
+            for i in range(self.board_size - 4):
+                for j in range(self.board_size):
+                    if all(state[i + k][j] == player for k in range(5)):
+                        return True
+            # 检查主对角线
+            for i in range(self.board_size - 4):
+                for j in range(self.board_size - 4):
+                    if all(state[i + k][j + k] == player for k in range(5)):
+                        return True
+            # 检查副对角线
+            for i in range(4, self.board_size):
+                for j in range(self.board_size - 4):
+                    if all(state[i - k][j + k] == player for k in range(5)):
+                        return True
+            return False
+
+        # 检查是否有玩家赢了
+        if check_winner(1) or check_winner(-1):
+            return True
+
+        # 检查棋盘是否已满
+        if all(state[i][j] != 0 for i in range(self.board_size) for j in range(self.board_size)):
+            return True
+
+        return False
+        
+    def act(self, state):
+        """
+        Return the next move given the current state.
+        """
+        pass
+
+
+class LLMAgent(Agent):
+    
+    def __init__(self, player_id=1, board_size=15, re_ask=0, loop_ask=1, 
+                 model=MODEL, 
+                 api_key=API_KEY, 
+                 base_url=BASE_URL):
+        
+        super().__init__(player_id, board_size)
+        self.re_ask = re_ask
+        self.llm_model = model
+        self.loop_ask = loop_ask
+        # API key and base URL
+        openai.api_key = api_key
+        openai.api_base = base_url
 
     def plan(self, state):
         cnt=0
@@ -102,7 +152,7 @@ class LLMAgent(object):
         inaccessable_positions = [(i,j) for i in range(self.board_size) for j in range(self.board_size) if state[i][j]!=0]
         print(f"[DEBUG] function plan: assessible_positions: \n{accessible_positions}")
 
-        prompt = f"""You are a excellent Gomoku chess player. And later I will need you to help me play Gomoku.
+        prompt1 = f"""You are a excellent Gomoku chess player. And later I will need you to help me play Gomoku.
                 Here are some important strategies and techniques to improve your Gomoku skills: 
                 1. When you find you have already formed a line of four, you must continue to form aLine of five to win the game!
                 2.Center Control:Start yourplacement in or near the center of the chessboard.
@@ -129,6 +179,37 @@ class LLMAgent(object):
                 3. (x, y).
                 4. (x, y).
                 5. (x, y).'"""
+        prompt2 = f"""You are a excellent Gomoku chess player. And later I will need you to help me play Gomoku.
+                Here are some important strategies and techniques to improve your Gomoku skills: 
+                1. When you find you have already formed a line of four, you must continue to form aLine of five to win the game!
+                2.Center Control:Start yourplacement in or near the center of the chessboard.
+                3.Blocking:Always be aware of your opponent's moves. If they are close to forming a line of five,prioritize
+                blocking them.Usually when your opponent formsa line of three, you need to block your opponent's plays!
+                4.When you find you have already formed a line of three, you are suggested to form a lineof four!
+                5.You can only set a piece(play)on empty
+                Now I play on a {self.board_size}*{self.board_size} chessboard, 
+                I will give you an array indicating board state line by line from left to right with 
+                {self.player_id} indicating my play, {-self.player_id} indicating opponent's plays, 
+                and 0 indicating empty spaces. The moves you can make are as follows: {accessible_positions}. 
+                pleasw give me position inside the above set.
+                The moves which are not empty are as follows: {inaccessable_positions}.
+                Please do not give me the positions which are not empty.
+                note the index starts at 0, So all of the components of your suggestion 
+                index must be less than {self.board_size}.
+                Now, Generate 3 defensive moves that blocks the opponent's threats. 
+                Then, generate 3 offensive moves that may form combo with your previous or future stones to gain advantage. 
+                For each move you generate, also give a short reason. 
+                Your response should follow the format: 
+                'Defensive moves:
+                <one-sentence reason>, 1. (<row>,<col>)
+                <one-sentence reason>, 2. (<row>,<col>)
+                <one-sentence reason>, 3. (<row>,<col>)
+                Offensive moves:
+                <one-sentence reason>, 4. (<row>,<col>)
+                <one-sentence reason>, 5. (<row>,<col>)
+                <one-sentence reason>, 6. (<row>,<col>)'
+                """
+        prompt = prompt2
         print(f"[DEBUG]: LLM plan prompt: \n{prompt}")
 
         content = self.display_board(state)
@@ -148,6 +229,38 @@ class LLMAgent(object):
         
         llm_response = response['choices'][0]['message']['content']
         print(f"[DEBUG] function plan: LLM 响应: \n{'-'*100}\n{llm_response}\n{'-'*100}\n")
+        if self.re_ask == 0:
+            recommended_positions = re.findall(r'\d+[,.:]\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)', llm_response)
+            recommended_positions = [(int(x), int(y)) for x, y in recommended_positions]
+            print(f"[DEBUG] function plan: LLM recommended_positions: \n{recommended_positions}")
+            if any(pos in accessible_positions for pos in recommended_positions):
+                valid_positions = [pos for pos in recommended_positions if pos in accessible_positions]
+                print(f"[DEBUG] function plan: LLM valid_positions: \n{valid_positions}")
+                return valid_positions
+            elif self.loop_ask == 1:
+                while cnt<3:
+                    cnt+=1
+                    response = openai.ChatCompletion.create(
+                        model=self.llm_model,
+                        messages=messages,
+                        temperature=0.2*cnt,  # Set temperature up to get various output
+                        # top_p = 0,   # gpt-4.o
+                        stream=False,
+                    )
+                    llm_response = response['choices'][0]['message']['content']
+                    print(f"[DEBUG] function plan: LLM 响应 in loop_ask mode retry times{cnt}: \n{'-'*100}\n{llm_response}\n{'-'*100}\n")
+                    recommended_positions = re.findall(r'\d+[,.:]\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)', llm_response)
+                    recommended_positions = [(int(x), int(y)) for x, y in recommended_positions]
+                    print(f"[DEBUG] function plan: LLM recommended_positions in loop_ask mode retry times{cnt}: \n{recommended_positions}")
+                    if any(pos in accessible_positions for pos in recommended_positions):
+                        valid_positions = [pos for pos in recommended_positions if pos in accessible_positions]
+                        print(f"[DEBUG] function plan: LLM valid_positions in loop_ask mode retry times{cnt}: \n{valid_positions}")
+                        return valid_positions
+                print("[DEBUG] plan failed in loop_ask mode: LLM have given me invalid positions for 3 times, so lead to a single random position.\n")
+                return [random.choice(accessible_positions)]
+            print("[DEBUG] plan failed: LLM have given me no invalid positions. with no re_ask option on, it lead to a single random position.\n")
+            return [random.choice(accessible_positions)]
+        re_ask = self.re_ask
         while cnt<3:
             recommended_positions = re.findall(r'\d+[,.:]\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)', llm_response)
             recommended_positions = [(int(x), int(y)) for x, y in recommended_positions]
@@ -156,8 +269,6 @@ class LLMAgent(object):
                 valid_positions = [pos for pos in recommended_positions if pos in accessible_positions]
                 print(f"[DEBUG] function plan re_ask complete: LLM valid_positions: \n{valid_positions}")
                 re_ask = 0
-            else:
-                re_ask = 1
             if re_ask == 1:
                 cnt+=1
                 messages.append(response.choices[0].message)
@@ -250,7 +361,7 @@ class LLMAgent(object):
         max_score_index = scores.index(max(scores))
         return recommended_positions[max_score_index]
 
-    def query_llm(self, state):
+    def act(self, state):
         recommended_positions = self.plan(state)
         scores = []
         for move in recommended_positions:
@@ -259,3 +370,126 @@ class LLMAgent(object):
         print(f"[DEBUG] function query_llm: recommended_positions: \n{recommended_positions} with scores: {scores}\n")
         print(f"[DEBUG] function query_llm: move made by player{self.player_id}: {best_move}\n")
         return best_move
+    
+class AIAgent(Agent):
+    def __init__(self, player_id=1, board_size=15, depth_limit=2):
+        super().__init__(player_id, board_size)
+        self.depth_limit = depth_limit  # 搜索深度限制
+
+    def act(self, state):
+        """
+        Return the next move given the current state.
+        """
+        print(f"[DEBUG] AIAgent in act: Starting alpha-beta search")
+        _, best_move = self.alpha_beta(state, depth=self.depth_limit, alpha=float('-inf'), beta=float('inf'), maximizing_player=True)
+        print(f"[DEBUG] AIAgent in act: Best move found: {best_move}")
+        return best_move if best_move else (random.randint(0, self.board_size-1), random.randint(0, self.board_size-1))
+
+    def alpha_beta(self, state, depth, alpha, beta, maximizing_player):
+        print(f"[DEBUG] AIAgent in alpha_beta: depth={depth}, alpha={alpha}, beta={beta}, maximizing_player={maximizing_player}")
+        if depth == 0 or self.is_game_over(state):
+            eval_score = self.evaluate(state)
+            print(f"[DEBUG] AIAgent in alpha_beta: Reached depth 0 or game over, eval_score={eval_score}")
+            return eval_score, None
+
+        legal_moves = [(x, y) for x in range(self.board_size) for y in range(self.board_size) if self.is_legal((x, y), state)]
+        if not legal_moves:
+            eval_score = self.evaluate(state)
+            print(f"[DEBUG] AIAgent in alpha_beta: No legal moves, eval_score={eval_score}")
+            return eval_score, None
+
+        best_move = None
+        if maximizing_player:
+            max_eval = float('-inf')
+            for move in legal_moves:
+                new_state = self.play_stone(move, state)
+                eval, _ = self.alpha_beta(new_state, depth - 1, alpha, beta, False)
+                if eval > max_eval:
+                    max_eval = eval
+                    best_move = move
+                alpha = max(alpha, eval)
+                if beta <= alpha:
+                    print(f"[DEBUG] AIAgent in alpha_beta: Pruning with alpha={alpha}, beta={beta}")
+                    break  # 剪枝
+            return max_eval, best_move
+        else:
+            min_eval = float('inf')
+            for move in legal_moves:
+                new_state = self.play_stone(move, state)
+                eval, _ = self.alpha_beta(new_state, depth - 1, alpha, beta, True)
+                if eval < min_eval:
+                    min_eval = eval
+                    best_move = move
+                beta = min(beta, eval)
+                if beta <= alpha:
+                    print(f"[DEBUG] AIAgent in alpha_beta: Pruning with alpha={alpha}, beta={beta}")
+                    break  # 剪枝
+            return min_eval, best_move
+
+    def evaluate(self, state):
+        """
+        Evaluate the current state of the game for the current player.
+        Positive values are good for the current player, negative values are bad.
+        """
+        print(f"[DEBUG] AIAgent in evaluate: Evaluating state")
+        scores = {self.player_id: 0, -self.player_id: 0}
+        
+        # Directions to check for consecutive stones (horizontal, vertical, and two diagonals)
+        directions = [(1, 0), (0, 1), (1, 1), (-1, 1)]
+
+        for x in range(self.board_size):
+            for y in range(self.board_size):
+                if state[x][y] != 0:
+                    player = state[x][y]
+                    for dx, dy in directions:
+                        score = self.evaluate_position(state, x, y, dx, dy, player)
+                        scores[player] += score
+                        print(f"[DEBUG] AIAgent in evaluate: Evaluated position ({x}, {y}) with direction ({dx}, {dy}), score={score}")
+
+        total_score = scores[self.player_id] - scores[-self.player_id]
+        print(f"[DEBUG] AIAgent in evaluate: Total score={total_score}")
+        return total_score
+    
+    def evaluate_position(self, state, x, y, dx, dy, player):
+        """
+        Evaluate the position at (x, y) in direction (dx, dy) for a given player.
+        """
+        count = 0  # Number of consecutive stones
+        empty_at_end = [False, False]  # Whether there's an empty space at both ends
+
+        # Check forward
+        i, j = x, y
+        while 0 <= i < self.board_size and 0 <= j < self.board_size and state[i][j] == player:
+            count += 1
+            i += dx
+            j += dy
+        empty_at_end[0] = 0 <= i < self.board_size and 0 <= j < self.board_size and state[i][j] == 0
+
+        # Reset coordinates and check backward
+        i, j = x - dx, y - dy
+        while 0 <= i < self.board_size and 0 <= j < self.board_size and state[i][j] == player:
+            count += 1
+            i -= dx
+            j -= dy
+        empty_at_end[1] = 0 <= i < self.board_size and 0 <= j < self.board_size and state[i][j] == 0
+
+        if count >= 5:
+            return 10000 if player == self.player_id else -10000  # Five in a row wins
+
+        if count == 4:
+            if any(empty_at_end):  # Live four
+                return 100 if player == self.player_id else -100
+            else:  # Chong four
+                return 50 if player == self.player_id else -50
+
+        if count == 3:
+            if all(empty_at_end):  # Live three
+                return 10 if player == self.player_id else -10
+            elif any(empty_at_end):  # Chong three
+                return 5 if player == self.player_id else -5
+
+        if count == 2:
+            if all(empty_at_end):  # Live two
+                return 1 if player == self.player_id else -1
+
+        return 0  # No significant pattern found

@@ -1,5 +1,5 @@
 from ChessBoard import ChessBoard
-from llm_agent import LLMAgent
+from agent import LLMAgent, AIAgent
 import json
 import argparse
 
@@ -17,7 +17,7 @@ def start_game(board, players, max_iter=5):
 
         # 调用agent决策落子位置
         state = board.get_state()
-        move = players[curr_player].query_llm(state)
+        move = players[curr_player].act(state)
 
         # 记录移动
         if curr_player == 1:
@@ -57,7 +57,7 @@ def main():
     bots = [bot1, bot2]
     
     # 开始游戏
-    moves = start_game(board, bots, max_iter=50)
+    moves = start_game(board, bots, max_iter=20)
 
     # 自定义函数来格式化列表
     def custom_format(obj):
