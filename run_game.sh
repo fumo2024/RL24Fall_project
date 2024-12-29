@@ -13,4 +13,4 @@ result_file="results/result_$timestamp.json"
 assets_file="simulator/assets/result_$timestamp.json"
 
 # 运行python脚本并将输出重定向到log文件
-python3 offline_game.py --output "$assets_file" > "$log_file"
+python3 play_game.py --output "$assets_file" --DEBUG

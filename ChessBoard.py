@@ -1,7 +1,7 @@
 from typing import Set, List
 from typing_extensions import Literal
 
-class ChessBoard(object):
+class Board(object):
     '''
     Chess Board
     A gomoku board class.
@@ -19,14 +19,29 @@ class ChessBoard(object):
         self.size = size
         self.win_len = win_len
         self.board = [[0 for _ in range(size)] for _ in range(size)]
-        self.moves: List[tuple] = []
-        self.now_playing: Literal[1, -1] = 1
-        self.winner = 0
+        # board states stored as a dict,
+        # key: move as location on the board,
+        # value: player as pieces type
+        self.states = {}
+        self.players = [1, 2]  # player1 and player2
+
+    def init_board(self, start_player:int=0) -> None:
+        '''
+        Initialize the board.
+        ## Parameters\n
+        start_player: int, optional
+            The player who plays first. Default is 0.
+        '''
+        self.board = [[0 for _ in range(self.size)] for _ in range(self.size)]
+        self.states = {}
+        self.current_player = self.players[start_player]
+        self.last_move = -1
+        self.winner = -1
 
     def is_legal(self, move:tuple) -> bool:
         '''
         Judge whether a stone can be placed at given coordinate.
-        ## Parameters\n
+        ## Parameters
         move: tuple
             The coordinate of move about to be judged.
         '''
@@ -46,10 +61,13 @@ class ChessBoard(object):
             pass
             # warnings.warn(f'Cannot play a stone at {move}.', Warning, 3)
         else:
-            self.board[move[0]][move[1]] = self.now_playing
-            self.moves.append(move)
-            self.now_playing = -self.now_playing
-        return
+            self.board[move[0]][move[1]] = self.current_player
+            self.states[move] = self.current_player
+            self.current_player = (
+            self.players[0] if self.current_player == self.players[1]
+            else self.players[1]
+        )
+            self.last_move = move
 
     def get_state(self) -> list:
         '''
@@ -60,32 +78,36 @@ class ChessBoard(object):
         '''
         return self.board
     
-    def display_board(self) -> None:
+    def display_state(self, state):
         '''
-        Print all placed stone.
+        display a given state
         '''
-        if self.moves == []:
-            return
-        else:
-            i_ticks = '  0 1 2 3 4 5 6 7 8 9 A B C D E'
-            i_ticks = i_ticks[0:1+2*self.size]
-            print(i_ticks)
-            for i in range(self.size):
-                if i < 10:
-                    print(i, end='')
+        board_str = ""
+        i_ticks = '  0 1 2 3 4 5 6 7 8 9 A B C D E'
+        i_ticks = i_ticks[0:1+2*self.size]
+        board_str += i_ticks + '\n'
+        for i in range(self.size):
+            if i < 10:
+                board_str += str(i)
+            else:
+                board_str += chr(55 + i)
+            for j in range(self.size):
+                board_str += ' '
+                if state[i][j] == self.players[0]:
+                    board_str += 'o'
+                elif state[i][j] == self.players[1]:
+                    board_str += 'x'
                 else:
-                    print(chr(55 + i), end='')
-                for j in range(self.size):
-                    print(' ', end='')
-                    if self.board[i][j] > 0:
-                        print('o', end='')
-                    elif self.board[i][j] < 0:
-                        print('x', end='')
-                    else:
-                        print(' ', end='')
-                    if j == self.size - 1:
-                        print()
-        return
+                    board_str += '-'
+                if j == self.size - 1:
+                    board_str += '\n'
+        return board_str
+    
+    def display_board(self):
+        '''
+        return the board.
+        '''
+        return self.display_state(self.board)
 
     def adjacent_vacancies(self) -> Set[tuple]:
         '''
@@ -96,9 +118,9 @@ class ChessBoard(object):
         the nearest stone is no greater than 1.
         '''
         vacancies = set()
-        if self.moves != []:
+        if self.states != {}:
             bias = range(-1, 2)
-            for move in self.moves:
+            for move in self.states.keys():
                 for i in bias:
                     if move[0]-i < 0 or move[0]-i >= self.size:
                         continue
@@ -106,7 +128,7 @@ class ChessBoard(object):
                         if move[1]-j < 0 or move[1]-j >= self.size:
                             continue
                         vacancies.add((move[0]-i, move[1]-j))
-            occupied = set(self.moves)
+            occupied = set(self.states.keys())
             vacancies -= occupied
         return vacancies
 
@@ -118,10 +140,11 @@ class ChessBoard(object):
         out: bool
             Return `True` if the game ended, otherwise `False`.
         '''
-        if self.moves == []:
+        if self.states == {}:
             return False
-        loc_i, loc_j = self.moves[-1]
-        color = -self.now_playing
+        print(self.last_move)
+        loc_i, loc_j = self.last_move
+        color = 1 if self.current_player == self.players[0] else -1
         sgn_i = [1, 0, 1, 1]
         sgn_j = [0, 1, 1, -1]
         for iter in range(4):
@@ -131,15 +154,96 @@ class ChessBoard(object):
             start_bias = -min(prm1, prm2) if min(prm1, prm2) < self.win_len-1 else -self.win_len+1
             end_bias = self.size - 1 - max(prm1, prm2) if max(prm1, prm2) > self.size-self.win_len else self.win_len-1
             for k in range(start_bias, end_bias+1):
-                stone = self.board[loc_i + k * sgn_i[iter]][loc_j + k * sgn_j[iter]]
+                stone = 1 if self.board[loc_i + k * sgn_i[iter]][loc_j + k * sgn_j[iter]] == self.players[0] else -1 if self.board[loc_i + k * sgn_i[iter]][loc_j + k * sgn_j[iter]] == self.players[1] else 0
                 if color > 0 and stone > 0 or color < 0 and stone < 0:
                     length += 1
                 else:
                     length = 0
                 if length == self.win_len:
-                    self.winner = 1 if color > 0 else -1
+                    self.winner = self.players[0] if color > 0 else self.players[1]
                     return True
-        if len(self.moves) == self.size ** 2:
+        if len(self.states) == self.size ** 2:
             return True
         else:
             return False
+    
+    def get_current_player(self):
+        '''
+        Get the current player.
+        ## Returns\n
+        out: int
+            The current player.
+            None
+            noninit board
+        '''
+        return self.current_player
+    
+    def get_moves(self):
+        '''
+        获取所有的移动。
+        ## Returns\n
+        out: dict
+            一个包含所有移动的字典，键为"white"和"black"。
+        '''
+        moves = {"black": [], "white": []}
+        for move, player in self.states.items():
+            if player == self.players[0]:
+                moves["black"].append(move)
+            else:
+                moves["white"].append(move)
+        return moves
+        
+
+class Game(object):
+    """game server"""
+
+    def __init__(self, board, **kwargs):
+        self.board = board
+
+    def graphic(self, board, player1, player2):
+        """Draw the board and show game info"""
+        width = board.size
+        height = board.size
+
+        print("Player", player1, "with o".rjust(3))
+        print("Player", player2, "with x".rjust(3))
+        print()
+        print(board.display_board())
+
+    def start_play(self, player1, player2, start_player=0, is_shown=1, max_iter=10000):
+        """start a game between two players"""
+        if start_player not in (0, 1):
+            raise Exception('start_player should be either 0 (player1 first) '
+                            'or 1 (player2 first)')
+        self.board.init_board(start_player)
+        p1, p2 = self.board.players
+        player1.set_player_ind(p1)
+        player2.set_player_ind(p2)
+        players = {p1: player1, p2: player2}
+        iter = 0
+        while iter < max_iter:
+            if is_shown:
+                print(f"{'#'*100}")
+                print(f'[output] iteration: {iter + 1}')
+                print(f"{'#'*100}")
+                self.graphic(self.board, player1.player, player2.player)
+            current_player = self.board.get_current_player()
+            player_in_turn = players[current_player]
+            move = player_in_turn.act(self.board)
+            self.board.play_stone(move)
+            end = self.board.is_ended()
+            if end or iter == max_iter-1:
+                if is_shown:
+                    print(f"{'#'*100}")
+                    if self.board.winner != -1:
+                        print(f"[output] Game Over after {iter + 1} iterations! winner is {players[self.board.winner]}.")
+                        print(f"{'#'*100}")
+                    elif iter == max_iter-1:
+                        print(f"[output] Game end after {iter + 1} iterations! Reached the maximum iteration limit.")
+                        print(f"{'#'*100}")
+                    else:
+                        print(f"[output] Game end after {iter + 1} iterations! Tie")
+                        print(f"{'#'*100}")
+                    self.graphic(self.board, player1.player, player2.player)
+                return self.board.winner
+            iter += 1
