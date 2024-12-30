@@ -34,6 +34,7 @@ class Board(object):
         '''
         self.board = [[0 for _ in range(self.size)] for _ in range(self.size)]
         self.states = {}
+        self.availables = [(i, j) for i in range(self.size) for j in range(self.size)] 
         self.current_player = self.players[start_player]
         self.last_move = -1
         self.winner = -1
@@ -63,6 +64,7 @@ class Board(object):
         else:
             self.board[move[0]][move[1]] = self.current_player
             self.states[move] = self.current_player
+            self.availables.remove(move)
             self.current_player = (
             self.players[0] if self.current_player == self.players[1]
             else self.players[1]
@@ -141,10 +143,9 @@ class Board(object):
             Return `True` if the game ended, otherwise `False`.
         '''
         if self.states == {}:
-            return False
-        print(self.last_move)
+            return False 
         loc_i, loc_j = self.last_move
-        color = 1 if self.current_player == self.players[0] else -1
+        color = 1 if self.current_player == self.players[1] else -1
         sgn_i = [1, 0, 1, 1]
         sgn_j = [0, 1, 1, -1]
         for iter in range(4):
@@ -192,6 +193,7 @@ class Board(object):
             else:
                 moves["white"].append(move)
         return moves
+    
         
 
 class Game(object):

@@ -19,10 +19,10 @@ def main():
     
     # 初始化对弈双方bot
     bot1 = LLMAgent(board_size=15)
-    bot2 = LLMAgent(board_size=15)
+    bot2 = AIAgent(board_size=15)
 
     # 开始游戏
-    game.start_play(bot1, bot2, start_player=0, is_shown=1, max_iter=5)
+    game.start_play(bot1, bot2, start_player=0, is_shown=1, max_iter=25)
 
     # 获取游戏记录
     moves = game.board.get_moves()

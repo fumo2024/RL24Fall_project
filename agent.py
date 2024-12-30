@@ -4,7 +4,7 @@ import json
 import os
 import random
 from typing import Tuple
-from mcts_pure import MCTS
+from mcts_pure import MCTS, policy_value_fn
 import logging
 
 # 定义文件名
@@ -387,12 +387,18 @@ class LLMAgent(Agent):
         llm_response = response['choices'][0]['message']['content']
         logging.debug(f"[DEBUG] function plan: LLM 响应: \n{'-'*100}\n{llm_response}\n{'-'*100}\n")
         if self.re_ask == 0:
+            all_positions = re.findall(r'\(\s*(\d+)\s*,\s*(\d+)\s*\)', llm_response)
+            all_positions = list(set([(int(x), int(y)) for x, y in all_positions]))
             recommended_positions = re.findall(r'\d+[,.:]\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)', llm_response)
             recommended_positions =list(set([(int(x), int(y)) for x, y in recommended_positions]))
             logging.debug(f"[DEBUG] function plan: LLM recommended_positions: \n{recommended_positions}")
             if any(pos in accessible_positions for pos in recommended_positions):
                 valid_positions = [pos for pos in recommended_positions if pos in accessible_positions]
                 logging.debug(f"[DEBUG] function plan: LLM valid_positions: \n{valid_positions}")
+                return valid_positions
+            elif any(pos in accessible_positions for pos in all_positions):
+                valid_positions = [pos for pos in all_positions if pos in accessible_positions]
+                logging.debug(f"[DEBUG] function plan for all position: LLM valid_positions: \n{valid_positions}")
                 return valid_positions
             elif self.loop_ask == 1:
                 while cnt<3:
@@ -507,19 +513,15 @@ class LLMAgent(Agent):
         logging.debug(f"[DEBUG] function query_llm: move made by player{self.player}: {best_move}\n")
         return best_move
     
+    def __str__(self):
+        return "LLMAgent {}".format(self.player)
+    
 class AIAgent(Agent):
     """
     A pure implementation of the Monte Carlo Tree Search (MCTS)
     """
-    def __init__(self, player=1, board_size=15, depth_limit=2):
-        super().__init__(player, board_size)
-        self.depth_limit = depth_limit  # 搜索深度限制
-
-
-
-class MCTSPlayer(object):
-    """AI player based on MCTS"""
-    def __init__(self, c_puct=5, n_playout=2000):
+    def __init__(self, board_size=15, c_puct=5, n_playout=2000):
+        super().__init__(board_size)
         self.mcts = MCTS(policy_value_fn, c_puct, n_playout)
 
     def set_player_ind(self, p):
@@ -528,17 +530,18 @@ class MCTSPlayer(object):
     def reset_player(self):
         self.mcts.update_with_move(-1)
 
-    def get_action(self, board):
+    def act(self, board):
         sensible_moves = board.availables
         if len(sensible_moves) > 0:
             move = self.mcts.get_move(board)
             self.mcts.update_with_move(-1)
+            print(f"AI Player {self.player} move: {move}")
             return move
         else:
-            print("WARNING: the board is full")
+            logging.info("WARNING: the board is full")
 
     def __str__(self):
-        return "MCTS {}".format(self.player)
+        return "AIAgent {}".format(self.player)
 
 class HumanAgent(Agent):
     def __init__(self, board_size=15):

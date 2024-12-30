@@ -63,6 +63,7 @@ data/
 checkpoint/
 apikey.*
 assets/
+*.json
 
 # ipynb
 .ipynb_checkpoints/

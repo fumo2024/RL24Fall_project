@@ -1,7 +1,6 @@
 """
 A pure implementation of the Monte Carlo Tree Search (MCTS)
 """
-
 import numpy as np
 import copy
 from operator import itemgetter
@@ -120,11 +119,11 @@ class MCTS(object):
                 break
             # Greedily select next move.
             action, node = node.select(self._c_puct)
-            state.do_move(action)
+            state.play_stone(action)
 
         action_probs, _ = self._policy(state)
         # Check for end of game
-        end, winner = state.game_end()
+        end = state.is_ended()
         if not end:
             node.expand(action_probs)
         # Evaluate the leaf node by random rollout
@@ -139,19 +138,19 @@ class MCTS(object):
         """
         player = state.get_current_player()
         for i in range(limit):
-            end, winner = state.game_end()
+            end = state.is_ended()
             if end:
                 break
             action_probs = rollout_policy_fn(state)
             max_action = max(action_probs, key=itemgetter(1))[0]
-            state.do_move(max_action)
+            state.play_stone(max_action)
         else:
             # If no break from the loop, issue a warning.
             print("WARNING: rollout reached move limit")
-        if winner == -1:  # tie
+        if state.winner == -1:  # tie
             return 0
         else:
-            return 1 if winner == player else -1
+            return 1 if state.winner == player else -1
 
     def get_move(self, state):
         """Runs all playouts sequentially and returns the most visited action.
